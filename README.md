@@ -1,0 +1,2 @@
+# Milthm_Score-Checker_python
+用python写的Milthm查分器
