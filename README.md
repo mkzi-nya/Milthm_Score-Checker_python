@@ -14,7 +14,7 @@ pip install Pillow
 如未指定存档路径则从mian.py所在目录读取save.json
 如不存在save.json则读取save.txt
 
-内含格式转换的脚本是由http://k9.lv/c/上解析出的格式转换为json格式，如果有需要使用其他格式的文件，可以使用此网站进行转换
+内含格式转换的脚本是由[http://k9.lv/c/]上解析出的格式转换为json格式，如果有需要使用其他格式的文件，可以使用此网站进行转换
 
 ### Instructions for Using the Python Score Checker:
 
