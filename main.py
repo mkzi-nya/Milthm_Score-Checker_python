@@ -1,210 +1,292 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os, sys, re, json, base64, plistlib, math, datetime
+import os, sys, re, json, base64, plistlib, math, datetime, urllib.parse
 from xml.etree import ElementTree as ET
 from PIL import Image, ImageDraw, ImageFont
 
-# 从文件加载常量字典
-def load_constants():
+# 加载常量
+def load_c():
     d = {}
     try:
-        with open("./beatmapid字典.txt", "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"): continue
-                m = re.match(r'"([^"]+)":\s*\{\s*constant:\s*([-\d\.]+)\s+category:\s*"([^"]+)"\s+name:\s*"([^"]+)"\s*\},?', line)
+        with open("./beatmapid字典.txt","r",encoding="utf-8") as f:
+            for ln in f:
+                ln=ln.strip()
+                if not ln or ln.startswith("#"):continue
+                m=re.match(r'"([^"]+)":\s*\{\s*constant:\s*([-\d\.]+)\s+category:\s*"([^"]+)"\s+name:\s*"([^"]+)"\s*\},?',ln)
                 if m:
-                    key = m.group(1)
-                    d[key] = {"constant": float(m.group(2)),
-                              "category": m.group(3),
-                              "name": m.group(4)}
-    except Exception as e:
-        print(f"[ERROR] 加载常量失败: {e}")
+                    d[m.group(1)]={"constant":float(m.group(2)),"category":m.group(3),"name":m.group(4)}
+    except:pass
     return d
-
-constants = load_constants()
+csts=load_c()
 
 # 分数计算
-def reality(score: int):
-    if score >= 1005000: return 1
-    if score >= 995000: return 1.4/(math.exp(-3.65*(score/10000-99.5))+1)-0.4
-    if score >= 980000: return ((math.exp(3.1*(score-980000)/15000)-1)/(math.exp(3.1)-1))*0.8-0.5
-    if score >= 700000: return score/280000-4
-    return None
+def reality(score):
+    if score>=1005000:return 1
+    if score>=995000:return 1.4/(math.exp(-3.65*(score/10000-99.5))+1)-0.4
+    if score>=980000:return((math.exp(3.1*(score-980000)/15000)-1)/(math.exp(3.1)-1))*0.8-0.5
+    if score>=700000:return score/280000-4
 
-# 存档解析函数
-def tryParseJSON(data: str): 
-    try: return json.loads(data)
-    except: return None
-def processRegFile(s: str):
-    m = re.search(r'"PlayerFile(_h\d+)?"\s*=\s*hex:((?:[0-9a-fA-F]{2}[,\s\\\n]*)+)', s)
-    if not m: 
-        print("[DEBUG] 未找到 PlayerFile 字段"); return ""
-    hexStr = re.sub(r'[,\s\\\n]', '', m.group(2))
-    return "".join(chr(int(hexStr[i:i+2],16)) for i in range(0,len(hexStr),2))
-def processPlistFile(content: str):
-    try:
-        data = plistlib.loads(content.encode("utf-8")) if content.startswith("<?xml") else plistlib.loads(content)
-        return base64.b64decode(data["PlayerFile"]).decode("utf-8","replace") if "PlayerFile" in data else (print("[DEBUG] plist 文件中未找到 PlayerFile 字段") or "")
-    except Exception as e:
-        print(f"[ERROR] 解析 plist 文件失败: {e}")
+# 尝试解析JSON
+def tJ(s):
+    try:return json.loads(s)
+    except:return None
+
+# 提取 reg
+def regFile(s):
+    m=re.search(r'"PlayerFile(?:_h\d+)?"\s*=\s*hex:((?:[0-9a-fA-F]{2},?[\s\\\n]*)+)',s)
+    if m:
+        hd=re.sub(r"[,\\\s\n]","",m.group(1))
+        return "".join(chr(int(hd[i:i+2],16))for i in range(0,len(hd),2))
     return ""
-def processXMLFile(s: str):
+
+# 处理 plist
+def pPlist(b):
     try:
-        for node in ET.fromstring(s).iter("string"):
-            if node.get("name")=="PlayerFile": return node.text or ""
-    except: pass
+        pd=plistlib.loads(b)
+        if "PlayerFile" in pd:
+            d=pd["PlayerFile"]
+            if isinstance(d,str):
+                try:json.loads(d);return d
+                except:pass
+    except:pass
     return ""
-def processPrefsFile(s: str):
+
+# 处理 XML
+def pXML(s):
     try:
-        for node in ET.fromstring(s).iter("pref"):
-            if node.get("name")=="PlayerFile" and node.get("type")=="string":
-                return base64.b64decode(node.text or "").decode("utf-8","replace")
-    except: pass
+        root=ET.fromstring(s)
+        n=root.find(".//string[@name='PlayerFile']")
+        if n is not None and n.text:return urllib.parse.unquote(n.text)
+    except:pass
     return ""
-def isNewFormat(data: str) -> bool: return bool(re.match(r"^\[.*\],\{.*\}$",data))
-def processData(raw: str): return processNewFormat(raw) if isNewFormat(raw) else processOldFormat(raw)
-def processNewFormat(s: str):
-    m = re.match(r"^\[(.*?)\],\{(.*)\}$", s)
-    if not m: return ("", [])
-    username, sd = m.group(1), m.group(2)
-    items = [processSong(x) for x in sd.split("],[") if processSong(x)]
-    return username, items
-def processOldFormat(s: str):
-    i = s.find('{"UserName":')
-    j = s.find('}]}',i)
-    if i<0 or j<0: return ("", [])
-    j += 3
-    data = tryParseJSON(s[i:j])
-    if not data or "SongRecords" not in data: return ("", [])
-    return data.get("UserName",""), [processSongOld(r) for r in data["SongRecords"] if processSongOld(r)]
-def processSong(s: str):
-    arr = s.strip("[]").split(",")
-    if len(arr) < 6: return None
+
+# 处理 Prefs
+def pPrefs(s):
     try:
-        title, cat = arr[0].strip(), arr[1].strip()
-        cst, scr, acc, lvl = float(arr[2]), int(arr[3]), float(arr[4]), int(arr[5])
-    except: return None
-    r = reality(scr)
-    return {"name": title, "category": cat, "constant": cst, "bestScore": scr, "bestAccuracy": acc, "bestLevel": lvl,
-            "singleRealityRaw": (r+cst) if r is not None else 0.0}
-def processSongOld(rec: dict):
-    bID = rec.get("BeatmapID")
-    if not bID or bID not in constants: return None
-    cdef = constants[bID]
-    scr, acc, lvl = rec.get("BestScore",0), rec.get("BestAccuracy",0.0), rec.get("BestLevel",0)
-    r = reality(scr)
-    return {"name": cdef["name"], "category": cdef["category"], "constant": cdef["constant"],
-            "bestScore": scr, "bestAccuracy": acc, "bestLevel": lvl,
-            "singleRealityRaw": (r+cdef["constant"]) if r is not None else 0.0}
-def extractJSON(s: str):
-    i = s.find('{"UserName":')
-    j = s.find(']}]',i)
-    return None if i<0 or j<0 else s[:j+3]+"}"
-def calculateAverageReality(items):
-    arr = sorted([it["singleRealityRaw"] for it in items if it["singleRealityRaw"]>0], reverse=True)
-    return sum(arr[:20])/20 if arr[:20] else 0.0
-def handleFile(content: str, base: str):
-    fn = base.lower()
+        for n in ET.fromstring(s).iter("pref"):
+            if n.get("name")=="PlayerFile"and n.get("type")=="string":
+                return base64.b64decode(n.text or "").decode("utf-8","replace")
+    except:pass
+    return ""
+
+# 判断新旧格式
+def isNewF(d):
+    return bool(re.match(r"^\[.*?\],\{.*?\}$",d.strip(),re.DOTALL))
+
+# 解析数据
+def pData(raw):
+    if not raw.strip():return None,[]
+    return pNew(raw) if isNewF(raw) else pOld(raw)
+
+# 新格式
+def pNew(s):
+    try:
+        m=re.match(r"^\[(.*?)\],\{(.*)\}$",s,re.DOTALL)
+        if not m:return None,[]
+        u=m.group(1)
+        sd=m.group(2)
+        its=[]
+        for song in re.findall(r"\[.*?\]",sd,re.DOTALL):
+            ps=psN(song)
+            if ps:its.append(ps)
+        return u,its
+    except:return None,[]
+
+# 处理单曲(新)
+def psN(s):
+    try:
+        arr=s.strip("[]").split(",")
+        if len(arr)<6:return
+        t,c,co,sc,ac,l=arr
+        co,sc,ac,l=float(co),int(sc),float(ac),int(l)
+        r=reality(sc)
+        sr=(r+co)if r else 0
+        return{"name":t.strip(),"category":c.strip(),"constant":co,"bestScore":sc,
+               "bestAccuracy":ac,"bestLevel":l,"singleRealityRaw":sr}
+    except:return
+
+# 旧格式
+def pOld(s):
+    i=s.find('{"UserName":')
+    j=s.find("}]}",i)
+    if i<0 or j<0:return None,[]
+    j+=3
+    d=tJ(s[i:j])
+    if not d or"SongRecords"not in d:return None,[]
+    u=d.get("UserName")
+    its=[]
+    for r in d["SongRecords"]:
+        pr=psO(r)
+        if pr:its.append(pr)
+    return u,its
+
+# 处理单曲(旧)
+def psO(r):
+    b=r.get("BeatmapID")
+    if(not b)or(b not in csts):return
+    c=csts[b]
+    sc=r.get("BestScore",0)
+    ac=r.get("BestAccuracy",0.0)
+    lv=r.get("BestLevel",0)
+    rr=reality(sc)
+    return{"name":c["name"],"category":c["category"],"constant":c["constant"],
+           "bestScore":sc,"bestAccuracy":ac,"bestLevel":lv,
+           "singleRealityRaw":(rr+c["constant"]) if rr else 0}
+
+# 计算平均Reality
+def avgR(its):
+    arr=sorted([x["singleRealityRaw"]for x in its if x["singleRealityRaw"]>0],reverse=True)
+    return sum(arr[:20])/20 if arr[:20] else 0
+
+# 处理文件
+def hF(b,fn):
+    fn=fn.lower()
+    s=b.decode("utf-8","replace")
     if fn.endswith(".json"):
-        extr = extractJSON(content); return extr if extr else content
-    if fn.endswith(".xml"): return processXMLFile(content) or content
-    if fn=="prefs": return processPrefsFile(content) or content
-    if fn.endswith(".plist"): return processPlistFile(content) or content
-    if fn.endswith(".reg"): return processRegFile(content) or content
-    return content
+        i=s.find('{"UserName":')
+        j=s.find("]}]",i)
+        return s[: j+3]+"}" if (i>=0 and j>=0) else s
+    elif fn.endswith(".xml"):return pXML(s)
+    elif fn=="prefs":return pPrefs(s)
+    elif fn.endswith(".plist"):return pPlist(b)
+    elif fn.endswith(".reg"):return regFile(s)
+    return s
 
-# 绘图辅助函数
-def draw_text_bottom_left(draw_obj, pos, text, font, fill):
-    bbox = draw_obj.textbbox((0,0), text, font=font)
-    draw_obj.text((pos[0], pos[1]-(bbox[3]-bbox[1])), text, font=font, fill=fill)
-def draw_gradient_text_bottom_left(canvas, pos, text, font, top_color, bottom_color):
-    draw_obj = ImageDraw.Draw(canvas)
-    bbox = draw_obj.textbbox((0,0), text, font=font); tw, th = bbox[2]-bbox[0], bbox[3]-bbox[1]
-    gradient = Image.new("RGBA", (tw,th))
-    for y in range(th):
-        ratio = y/(th-1) if th>1 else 0
-        r = int(top_color[0]*(1-ratio)+bottom_color[0]*ratio)
-        g = int(top_color[1]*(1-ratio)+bottom_color[1]*ratio)
-        b = int(top_color[2]*(1-ratio)+bottom_color[2]*ratio)
-        for x in range(tw): gradient.putpixel((x,y),(r,g,b,255))
-    mask = Image.new("L", (tw,th), 0); ImageDraw.Draw(mask).text((-bbox[0], -bbox[1]), text, font=font, fill=255)
-    gradient.putalpha(mask)
-    canvas.alpha_composite(gradient, dest=(pos[0]-bbox[0], pos[1]-bbox[1]))
-
-# 绘图函数
-def drawImage(items, username, userReality, output_path):
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    W, H = 1200, 2200; canvas = Image.new("RGBA",(W,H),(0,0,0,255)); draw = ImageDraw.Draw(canvas)
-    bg_path = os.path.join(script_dir,"jpgs","查分图.jpg")
-    if os.path.exists(bg_path):
-        bg = Image.open(bg_path).convert("RGBA").resize((W,H)); canvas.paste(bg,(0,0))
-    else: draw.rectangle([(0,0),(W,H)], fill=(0,0,0,255))
-    overlay = Image.new("RGBA",(W,200),(128,128,128,int(0.3*255)))
-    canvas.paste(overlay,(0,50),overlay)
-    draw.line([(550,250),(650,50)], fill=(255,255,255,int(0.8*255)), width=3)
-    font_path = os.path.join(script_dir,"fonts","NotoSansCJK-Regular.ttc")
-    f25 = ImageFont.truetype(font_path,25,index=2); f30 = ImageFont.truetype(font_path,30,index=2); f50 = ImageFont.truetype(font_path,50,index=2)
-    draw_text_bottom_left(draw, (660,100), f"Player: {username}", f25, (255,255,255))
-    draw_text_bottom_left(draw, (660,150), f"Reality: {round(userReality,4)}", f25, (255,255,255))
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    draw_text_bottom_left(draw, (660,200), f"Date: {now_str}", f25, (255,255,255))
-    draw_text_bottom_left(draw, (100,130), "Reality查分器v3.0", f50, (255,255,255))
-    draw_text_bottom_left(draw, (100,180), "http://k9.lv/c/", f30, (255,255,255))
-    maxItems = min(22, len(items)); card_images = []
-    for i in range(maxItems):
-        nm = items[i]["name"]
-        img_path = os.path.join(script_dir,"jpgs",f"{nm}.jpg")
-        if not os.path.exists(img_path): img_path = os.path.join(script_dir,"jpgs","NYA.jpg")
-        try: card_images.append(Image.open(img_path).convert("RGBA"))
-        except Exception as e:
-            print(f"[DEBUG] 读取图片失败: {img_path}，错误: {e}")
-            card_images.append(Image.new("RGBA",(142,80),(100,100,100,255)))
-    scale = 1.3; cardW, cardH = int(340*scale), int(100*scale); imgW, imgH = int(142*scale), int(80*scale)
-    xOffset, yOffset = 110,350; colSpace, rowSpace = int(400*scale), int(125*scale)
-    f_num = ImageFont.truetype(font_path, int(13*scale), index=2)
-    f_score = ImageFont.truetype(font_path, int(30*scale), index=2)
-    f_reality = ImageFont.truetype(font_path, int(15*scale), index=2)
-    for i in range(maxItems):
-        x = xOffset + (i%2)*colSpace; y = yOffset + (i//2)*rowSpace - (50 if i%2==0 else 0)
-        card_bg = Image.new("RGBA",(cardW,cardH),(128,128,128,int(0.4*255)))
-        canvas.paste(card_bg,(x,y),card_bg)
-        num_text = f"#{i+1}"
-        bbox = draw.textbbox((0,0),num_text,font=f_num); w_num = bbox[2]-bbox[0]
-        draw.text((x+cardW-10-w_num,y+int(scale)), num_text, fill=(250,250,250) if i<20 else (201,201,201), font=f_num)
-        score_text = str(items[i]["bestScore"]).zfill(7)
-        score_pos = (int(x+160*scale), int(y+53*scale)); bLevel = items[i]["bestLevel"]
-        if bLevel < 2:
-            draw_gradient_text_bottom_left(canvas, score_pos, score_text, f_score, (0x99,0xC5,0xFB), (0xD8,0xC3,0xFA))
-        else:
-            draw_text_bottom_left(draw, score_pos, score_text, f_score, (144,202,239) if bLevel==2 else (255,255,255))
-        song_name = items[i]["name"]; maxTextWidth = 200; font_size = int(19*scale)
-        font_song = ImageFont.truetype(font_path, font_size, index=2)
-        while (draw.textbbox((0,0),song_name,font=font_song)[2]-draw.textbbox((0,0),song_name,font=font_song)[0] > maxTextWidth) and (font_size>10):
-            font_size -= 1; font_song = ImageFont.truetype(font_path, font_size, index=2)
-        draw_text_bottom_left(draw, (int(x+163*scale), int(y+28*scale)), song_name, font_song, (255,255,255))
-        reality_text = f"{items[i]['category']} {float(items[i]['constant']):.1f} > {float(items[i]['singleRealityRaw']):.2f}   {(float(items[i]['bestAccuracy'])*100):.2f}%"
-        draw_text_bottom_left(draw, (int(x+160*scale), int(y+80*scale)), reality_text, f_reality, (255,255,255))
-        card_img = card_images[i].resize((imgW,imgH))
-        canvas.paste(card_img,(int(x+10*scale), int(y+10*scale)))
-    canvas.convert("RGB").save(output_path, "PNG")
+# 绘图
+def drawImg(its,uname,uR,outp,drawCount):
+    sd=os.path.dirname(os.path.abspath(__file__))
+    scale=1.3
+    cardW,cardH=int(340*scale),int(100*scale)
+    imgW,imgH=int(142*scale),int(80*scale)
+    xOff,yOff=110,350
+    colSp,rowSp=int(400*scale),int(125*scale)
+    rows=(drawCount+1)//2
+    baseRows=11
+    # 若超出默认22则增加高度
+    if drawCount<=22:H=2200
+    else:H=2200+(rows-baseRows)*rowSp
+    W=1200
+    can=Image.new("RGBA",(W,H),(0,0,0,255))
+    dr=ImageDraw.Draw(can)
+    bgp=os.path.join(sd,"jpgs","查分图.jpg")
+    if os.path.exists(bgp):
+        bg=Image.open(bgp).convert("RGBA").resize((W,H))
+        can.paste(bg,(0,0))
+    else:dr.rectangle([(0,0),(W,H)],fill=(0,0,0,255))
+    ov=Image.new("RGBA",(W,200),(128,128,128,int(0.3*255)))
+    can.paste(ov,(0,50),ov)
+    dr.line([(550,250),(650,50)],fill=(255,255,255,int(0.8*255)),width=3)
+    fp=os.path.join(sd,"fonts","NotoSansCJK-Regular.ttc")
+    f25=ImageFont.truetype(fp,25,index=2)
+    f30=ImageFont.truetype(fp,30,index=2)
+    f50=ImageFont.truetype(fp,50,index=2)
+    dr.text((660,80),"Player: "+str(uname),fill=(255,255,255),font=f25)
+    dr.text((660,130),"Reality: "+str(round(uR,4)),fill=(255,255,255),font=f25)
+    dr.text((660,180),"Date: "+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            fill=(255,255,255),font=f25)
+    dr.text((100,90),"Reality查分器v3.0",fill=(255,255,255),font=f50)
+    dr.text((100,160),"http://k9.lv/c/",fill=(255,255,255),font=f30)
+    cImgs=[]
+    for i in range(drawCount):
+        nm=its[i]["name"]
+        ip=os.path.join(sd,"jpgs",nm+".jpg")
+        if not os.path.exists(ip):ip=os.path.join(sd,"jpgs","NYA.jpg")
+        try:cImgs.append(Image.open(ip).convert("RGBA"))
+        except:cImgs.append(Image.new("RGBA",(142,80),(100,100,100,255)))
+    fN=ImageFont.truetype(fp,int(13*scale),index=2)
+    fS=ImageFont.truetype(fp,int(30*scale),index=2)
+    fR=ImageFont.truetype(fp,int(15*scale),index=2)
+    def draw_gradient_txt(cv,xy,txt,ft,tc,bc):
+        d=ImageDraw.Draw(cv)
+        bb=d.textbbox((0,0),txt,font=ft)
+        tw,th=bb[2]-bb[0],bb[3]-bb[1]
+        g=Image.new("RGBA",(tw,th))
+        for y in range(th):
+            r=int(tc[0]*(1-y/(th-1))+bc[0]*(y/(th-1)))if th>1 else tc[0]
+            gg=int(tc[1]*(1-y/(th-1))+bc[1]*(y/(th-1)))if th>1 else tc[1]
+            bbb=int(tc[2]*(1-y/(th-1))+bc[2]*(y/(th-1)))if th>1 else tc[2]
+            for x in range(tw):g.putpixel((x,y),(r,gg,bbb,255))
+        mk=Image.new("L",(tw,th),0)
+        ImageDraw.Draw(mk).text((-bb[0],-bb[1]),txt,font=ft,fill=255)
+        g.putalpha(mk)
+        cv.alpha_composite(g,dest=(xy[0]-bb[0],xy[1]-bb[1]))
+    def dtb(d,x,y,txt,ft,fl):
+        b=d.textbbox((0,0),txt,font=ft)
+        d.text((x,y-(b[3]-b[1])),txt,font=ft,fill=fl)
+    for i in range(drawCount):
+        x=xOff+(i%2)*colSp
+        y=yOff+(i//2)*rowSp-(50 if i%2==0 else 0)
+        bg=Image.new("RGBA",(cardW,cardH),(128,128,128,int(0.4*255)))
+        can.paste(bg,(x,y),bg)
+        numT="#"+str(i+1)
+        nb=dr.textbbox((0,0),numT,font=fN)
+        dr.text((x+cardW-10-(nb[2]-nb[0]),y+int(scale)),numT,
+                fill=(250,250,250) if i<20 else (201,201,201),font=fN)
+        scT=str(its[i]["bestScore"]).zfill(7)
+        scPos=(int(x+160*scale),int(y+53*scale))
+        lv=its[i]["bestLevel"]
+        if lv<2:draw_gradient_txt(can,scPos,scT,fS,(0x99,0xC5,0xFB),(0xD8,0xC3,0xFA))
+        else:dtb(dr,scPos[0],scPos[1],scT,fS,(144,202,239) if lv==2 else (255,255,255))
+        sn=its[i]["name"]
+        fw=int(19*scale)
+        fSong=ImageFont.truetype(fp,fw,index=2)
+        while dr.textbbox((0,0),sn,font=fSong)[2]>200 and fw>10:
+            fw-=1;fSong=ImageFont.truetype(fp,fw,index=2)
+        dtb(dr,int(x+163*scale),int(y+28*scale),sn,fSong,(255,255,255))
+        rt="%s %.1f > %.2f   %.2f%%"%(its[i]['category'],its[i]['constant'],
+                                      its[i]['singleRealityRaw'],its[i]['bestAccuracy']*100)
+        dtb(dr,int(x+160*scale),int(y+80*scale),rt,fR,(255,255,255))
+        ci=cImgs[i].resize((imgW,imgH))
+        can.paste(ci,(int(x+10*scale),int(y+10*scale)))
+    can.convert("RGB").save(outp,"PNG")
 
 def main():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    args = sys.argv[1:]
-    save_path = args[0] if args else (os.path.join(script_dir,"save.json") if os.path.exists(os.path.join(script_dir,"save.json")) else os.path.join(script_dir,"save.txt"))
-    if not os.path.exists(save_path):
-        print(f"[ERROR] 存档文件不存在: {save_path}")
+    sd=os.path.dirname(os.path.abspath(__file__))
+    args=sys.argv[1:]
+    # 默认配置
+    drawCount=22
+    savePath=os.path.join(sd,"save.json") if os.path.exists(os.path.join(sd,"save.json")) \
+             else os.path.join(sd,"save.txt")
+    outPath=os.path.join(sd,"output_py_%s.png"%datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+    
+    # 第1参数若是数字，则作为drawCount
+    idx=0
+    if len(args)>0 and args[0].isdigit():
+        drawCount=int(args[0]);idx=1
+    
+    # 第2参数若存在，则作为存档路径
+    if len(args)>idx:
+        sp=args[idx]
+        if os.path.exists(sp):
+            savePath=sp
+        idx+=1
+
+    # 第3参数若存在，则判断是目录还是文件
+    if len(args)>idx:
+        p=args[idx]
+        if os.path.isdir(p):
+            outPath=os.path.join(p,"output_py_%s.png"%datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+        else:
+            # 上级目录不存在就不处理，默认逻辑
+            dirp=os.path.dirname(p)
+            if dirp=="" or os.path.isdir(dirp):
+                outPath=p
+    
+    # 读文件并解析
+    try:
+        with open(savePath,"rb")as f:cont=f.read()
+    except:
+        print(f"[ERROR] 存档文件不存在: {savePath}")
         return
-    output_path = args[1] if len(args)>1 else os.path.join(script_dir, f"output_py_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
-    with open(save_path, "r", encoding="utf-8", errors="replace") as f:
-        content = f.read()
-    raw_data = handleFile(content, os.path.basename(save_path))
-    username, items = processData(raw_data)
-    userReality = calculateAverageReality(items)
-    items.sort(key=lambda x: x["singleRealityRaw"], reverse=True)
-    drawImage(items, username, userReality, output_path)
-    print(f"[OK] 已完成，图像输出到: {output_path}")
+    raw=hF(cont,os.path.basename(savePath))
+    uname,its=pData(raw)
+    if not its:
+        print("[ERROR] 无效数据");return
+    its.sort(key=lambda x:x["singleRealityRaw"],reverse=True)
+    uR=avgR(its)
+    mI=min(drawCount,len(its))  # 实际要绘制的曲目数
+    drawImg(its,uname,uR,outPath,mI)
+    print("[OK] 完成，图像输出:",outPath)
 
 if __name__=="__main__":
     main()
