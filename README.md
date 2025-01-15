@@ -12,7 +12,7 @@ Milthm Score Checker written in Python
   Added support for various platform save file formats (JSON, XML, plist, reg, and the format parsed from [http://k9.lv/c/]).
 - 增加控制绘制曲目数量  
   Added control for the number of tracks to be drawn.
-- 改为在线下载曲绘文件
+- 改为在线下载曲绘文件  
   Change to download jacket files online.
 
 ---
