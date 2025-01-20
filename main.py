@@ -187,7 +187,7 @@ def drawImg(its,uname,uR,outp,drawCount):
     f30=ImageFont.truetype(fp,30,index=2)
     f50=ImageFont.truetype(fp,50,index=2)
     dr.text((660,80),"Player: "+str(uname),fill=(255,255,255),font=f25)
-    dr.text((660,130),"Reality: "+str(round(uR,4)),fill=(255,255,255),font=f25)
+    dr.text((660,130),"Reality: "+str(math.floor(uR*10000)/10000),fill=(255,255,255),font=f25)
     dr.text((660,180),"Date: "+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             fill=(255,255,255),font=f25)
     dr.text((100,90),"Reality查分器v3.0",fill=(255,255,255),font=f50)
