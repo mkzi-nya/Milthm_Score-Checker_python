@@ -8,6 +8,7 @@ Milthm Score Checker written in Python
 ### v1.11
 
 - 将`userReality`计算方式改为向下取整，`Broken Conviction_CL`定数更改为11.899
+
   Change the calculation method of `userReality` to floor rounding, and update the constant `Broken Conviction_CL` to 11.899.
 
 ### v1.1
