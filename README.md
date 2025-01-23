@@ -5,6 +5,20 @@ Milthm Score Checker written in Python
 ---
 
 ## 更新日志 / Changelog
+### v1.2
+- 增加绘制等级图标的参数，以及略微调整界面
+  ```bash
+  python3 main.py [是否绘制图标] [绘制曲目数量] "存档路径" "输出图片路径"
+  ```
+  1为绘制，默认为0
+
+- Added a parameter to enable or disable drawing level icons and made slight adjustments to the interface.  
+  Run the script with the following command:
+  ```bash
+  python3 main.py [Draw Icons (1 or 0)] [Number of Tracks to Draw] "Save File Path" "Output Image Path"
+  ```
+  Use `1` to enable drawing icons; the default is `0`.
+  
 ### v1.1.1
 
 - 将`userReality`计算方式改为向下取整，`Broken Conviction_CL`定数更改为11.899
@@ -33,8 +47,9 @@ Milthm Score Checker written in Python
 
 2. 转到 `main.py` 所在目录:
    ```bash
-   python3 main.py [绘制曲目数量] "存档路径" "输出图片路径"
+   python3 main.py [是否绘制图标] [绘制曲目数量] "存档路径" "输出图片路径"
    ```
+   - `[是否绘制图标]` 为选填，1为绘制，默认为 0。
    - `[绘制曲目数量]` 为选填，默认为 22。  
    - 如未指定输出图片路径，则图片输出到 `main.py` 所在目录。  
    - 如未指定存档路径，则程序尝试从 `main.py` 所在目录读取 `save.json`。  
@@ -55,8 +70,9 @@ Milthm Score Checker written in Python
 
 2. Navigate to the directory where `main.py` is located:
    ```bash
-   python3 main.py [Number of Tracks to Draw] "Save File Path" "Output Image Path"
+   python3 main.py [Draw Icons (1 or 0)] [Number of Tracks to Draw] "Save File Path" "Output Image Path"
    ```
+   - `[Whether to draw icons]` is optional; 1 means to draw, and the default is 0.
    - `[Number of Tracks to Draw]` is optional, defaulting to 22.  
    - If the output image path is not specified, the image will be saved in the same directory as `main.py`.  
    - If the save file path is not specified, the program will try to read `save.json` from the same directory as `main.py`.  
