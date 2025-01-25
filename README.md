@@ -18,7 +18,7 @@ Milthm Score Checker written in Python
 - Added a parameter to enable or disable drawing level icons and made slight adjustments to the interface.  
   Run the script with the following command:
   ```bash
-  python3 main.py [Draw Icons (1 or 0)] [Number of Tracks to Draw] "Save File Path" "Output Image Path"
+  python3 main.py [Draw Icons] [Number of Tracks to Draw] "Save File Path" "Output Image Path"
   ```
   Use `1` to enable drawing icons; the default is `0`.
   
