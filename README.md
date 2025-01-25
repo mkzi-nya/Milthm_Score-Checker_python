@@ -5,6 +5,9 @@ Milthm Score Checker written in Python
 ---
 
 ## 更新日志 / Changelog
+### v1.2.1
+- 校准links.txt内曲名的大小写，以及略微调整main.py
+- Calibrate the capitalization of song titles in links.txt, and slightly adjust main.py
 ### v1.2
 - 增加绘制等级图标的参数，以及略微调整界面
   ```bash
