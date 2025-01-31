@@ -440,6 +440,9 @@ def main():
     # 解析存档数据
     uname, its = None, []
 
+    lm=load_links()  # 默认读取 script_dir 下的 links.txt
+    download_all_parallel(lm)
+
     # 优先级：用户指定路径 > saves.db > save.txt > save.json
     if user_specified_path and os.path.exists(user_specified_path):
         savePath = user_specified_path
