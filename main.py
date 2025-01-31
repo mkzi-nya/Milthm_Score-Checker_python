@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os, sys, re, json, base64, plistlib, math, datetime, urllib.parse
+import os, sys, re, json, base64, plistlib, math, datetime, urllib.parse,sqlite3
 import requests
 from functools import partial
 from xml.etree import ElementTree as ET
@@ -83,7 +83,28 @@ def pPrefs(s):
     except:
         pass
     return ""
+def pdb(db_path):
 
+    try:
+        # 连接数据库
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # 获取 PlayerFile 的 JSON 数据
+        cursor.execute("SELECT value FROM kv WHERE key='PlayerFile'")
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            raw_json = row[0]  # 提取 JSON 数据
+            uname, its = pOld(raw_json)  # 调用 pOld 进行解析
+            return uname, its
+        else:
+            print("[ERROR] 未找到 PlayerFile 数据")
+            return None, []
+    except Exception as e:
+        print(f"[ERROR] 解析数据库失败: {e}")
+        return None, []
 def isNewF(d):
     return bool(re.match(r"^\[.*?\],\{.*?\}$", d.strip(), re.DOTALL))
 
@@ -394,64 +415,82 @@ def download_all_parallel(links_map):
     if done_cnt>0 and show_progress:
         with open(sentinel,"w") as f:
             f.write("downloaded.\n")
-
 def main():
     # script_dir 替换 sd
-    args=sys.argv[1:]
-    drawLevel=0
-    if len(args)>0 and args[0].isdigit():
-        drawLevel=int(args[0])
-        args=args[1:]
-    drawCount=22
-    if len(args)>0 and args[0].isdigit():
-        drawCount=int(args[0])
-        args=args[1:]
+    args = sys.argv[1:]
+    drawLevel = 0
+    if len(args) > 0 and args[0].isdigit():
+        drawLevel = int(args[0])
+        args = args[1:]
+    drawCount = 22
+    if len(args) > 0 and args[0].isdigit():
+        drawCount = int(args[0])
+        args = args[1:]
 
-    # 默认保存路径：先判断 save.json 是否存在，否则使用 save.txt
+    # 默认存档路径（JSON 或 TXT）
     save_json_path = os.path.join(script_dir, "save.json")
     save_txt_path  = os.path.join(script_dir, "save.txt")
-    if os.path.exists(save_json_path):
-        savePath = save_json_path
-    else:
+    save_db_path   = os.path.join(script_dir, "saves.db")  # 添加数据库路径
+
+    # 用户指定路径
+    user_specified_path = None
+    if len(args) > 0:
+        user_specified_path = args[0]
+
+    # 解析存档数据
+    uname, its = None, []
+
+    # 优先级：用户指定路径 > saves.db > save.txt > save.json
+    if user_specified_path and os.path.exists(user_specified_path):
+        savePath = user_specified_path
+        try:
+            with open(savePath, "rb") as f:
+                cont = f.read()
+            raw = hF(cont, os.path.basename(savePath))
+            uname, its = pData(raw)
+        except Exception as e:
+            print(f"[ERROR] 解析用户指定路径存档文件失败: {e}")
+
+    if not its and os.path.exists(save_db_path):
+        uname, its = pdb(save_db_path)
+
+    if not its and os.path.exists(save_txt_path):
         savePath = save_txt_path
+        try:
+            with open(savePath, "rb") as f:
+                cont = f.read()
+            raw = hF(cont, os.path.basename(savePath))
+            uname, its = pData(raw)
+        except Exception as e:
+            print(f"[ERROR] 解析TXT存档文件失败: {e}")
 
-    outPath = os.path.join(script_dir, "output_py_%s.png"%datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
-    idx=0
-    if len(args)>idx:
-        sp=args[idx]
-        if os.path.exists(sp):
-            savePath=sp
-        idx+=1
-    if len(args)>idx:
-        p=args[idx]
-        if os.path.isdir(p):
-            outPath=os.path.join(p,"output_py_%s.png"%datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
-        else:
-            dirp=os.path.dirname(p)
-            if dirp=="" or os.path.isdir(dirp):
-                outPath=p
+    if not its and os.path.exists(save_json_path):
+        savePath = save_json_path
+        try:
+            with open(savePath, "rb") as f:
+                cont = f.read()
+            raw = hF(cont, os.path.basename(savePath))
+            uname, its = pData(raw)
+        except Exception as e:
+            print(f"[ERROR] 解析JSON存档文件失败: {e}")
 
-    lm=load_links()  # 默认读取 script_dir 下的 links.txt
-    download_all_parallel(lm)
-
-    try:
-        with open(savePath,"rb") as f:
-            cont=f.read()
-    except:
-        print(f"[ERROR] 存档文件不存在: {savePath}")
-        return
-
-    raw=hF(cont, os.path.basename(savePath))
-    uname,its=pData(raw)
+    # **如果仍然没有数据，则报错退出**
     if not its:
-        print("[ERROR] 无效数据")
+        print("[ERROR] 无法解析存档数据")
         return
 
-    its.sort(key=lambda x:x["singleRealityRaw"],reverse=True)
-    uR=avgR(its)
-    mI=min(drawCount,len(its))
-    drawImg(its, uname, uR, outPath, mI, drawLevel)
-    print("[OK] 完成，图像输出:", outPath)
+    # 排序 Reality 值
+    its.sort(key=lambda x: x["singleRealityRaw"], reverse=True)
 
+    # 计算 Reality 平均值
+    uR = avgR(its)
+
+    # 生成 Reality 评分图
+    outPath = os.path.join(script_dir, "output_py_%s.png" % datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+    
+    mI = min(drawCount, len(its))  # 限制最多绘制的记录
+    drawImg(its, uname, uR, outPath, mI, drawLevel)
+
+    print("[OK] 完成，图像输出:", outPath)
 if __name__=="__main__":
     main()
