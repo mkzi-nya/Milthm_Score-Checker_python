@@ -5,6 +5,10 @@ Milthm Score Checker written in Python
 ---
 
 ## 更新日志 / Changelog
+### v1.2.2
+- 适配3.2.0版本的存档格式，以及未指定路径下默认改为`saves.db` > `save.txt` > `save.json`
+- Adapt to the save format of version 3.2.0, and change the default priority order to `saves.db` > `save.txt` > `save.json` when no path is specified.
+
 ### v1.2.1
 - 校准links.txt内曲名的大小写，以及略微调整main.py
 - Calibrate the capitalization of song titles in links.txt, and slightly adjust main.py
