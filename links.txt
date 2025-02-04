@@ -48,5 +48,7 @@
 "Rainbow Flavor!": "https://static.wikia.nocookie.net/milthm/images/e/e1/Rainbow_Flavor%21_jacket.png",
 "IN": "https://static.wikia.nocookie.net/milthm/images/c/c0/IN_jacket.png",
 "驟雨の狭間": "https://static.wikia.nocookie.net/milthm/images/6/65/Rainshower_square_jacket.png",
-"Broken Conviction": "https://i.ytimg.com/vi/wl2lrAUX-Hk/maxresdefault.jpg",
+"Broken Conviction": "https://static.wikia.nocookie.net/milthm/images/9/9a/Broken_Conviction_jacket.png",
 "NYA": "https://static.wikia.nocookie.net/milthm/images/c/cc/Mil_night.png"
+"Meltovt Necrosys": "https://static.wikia.nocookie.net/milthm/images/9/99/Meltovt_Necrosys_jacket.png"
+"Elsorhg": "https://static.wikia.nocookie.net/milthm/images/b/b2/Elsorhg_jacket.png"
