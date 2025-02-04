@@ -103,7 +103,6 @@ def psO(r):
     if not (b := r.get("BeatmapID")) or b not in csts: return
     c, sc, ac, lv, rr = csts[b], r.get("BestScore", 0), r.get("BestAccuracy", 0.0), r.get("BestLevel", 0), reality(r.get("BestScore", 0))
     return {**c, "bestScore": sc, "bestAccuracy": ac, "bestLevel": lv, "singleRealityRaw": (rr + c["constant"]) if rr else 0}
-
 def drawImg(its, uname, uR, outp, drawCount, drawLevel):
     rows = (drawCount+1)//2
     if drawCount<=22:H=2200
@@ -124,11 +123,51 @@ def drawImg(its, uname, uR, outp, drawCount, drawLevel):
     dr.text((660,180),"Date: "+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),fill=(255,255,255), font=f25)
     dr.text((100,90),"Reality查分器v1.2", fill=(255,255,255), font=ImageFont.truetype(fp,50,index=2))
     dr.text((100,160),"http://k9.lv/c/", fill=(255,255,255), font=ImageFont.truetype(fp,30,index=2))
+    
+    # 绘制用户折线图
+    data_db_path = os.path.join(script_dir, "data.db")
+    if os.path.exists(data_db_path):
+        try:
+            user_reality_timeline = calcUserRealityTimelineNew(data_db_path, its)
+            if user_reality_timeline:
+                # 创建折线图区域
+                timeline_img = Image.new("RGBA", (200, 100), (0, 0, 0, 0))  # 200x100的透明背景
+                timeline_dr = ImageDraw.Draw(timeline_img)
+
+                # 画折线图
+                timestamps = [datetime.datetime.strptime(t, "%Y-%m-%d %H:%M:%S") for t, _ in user_reality_timeline]
+                reality_values = [r for _, r in user_reality_timeline]
+
+                min_time, max_time = min(timestamps), max(timestamps)
+                min_reality, max_reality = min(reality_values), max(reality_values)
+
+                def scale_x(time_point):
+                    time_diff = (max_time - min_time).total_seconds()
+                    if time_diff == 0:
+                        return 0
+                    return (time_point - min_time).total_seconds() / time_diff * 200
+
+                def scale_y(reality_val):
+                    return 100 - (reality_val - min_reality) / (max_reality - min_reality) * 100
+
+                prev_xy = None
+                for t, r in zip(timestamps, reality_values):
+                    x, y = scale_x(t), scale_y(r)
+                    if prev_xy:
+                        timeline_dr.line([prev_xy, (x, y)], fill=(173, 216, 230, 128), width=3)  # 浅蓝色，半透明
+                    prev_xy = (x, y)
+
+                can.paste(timeline_img, (950, 10), timeline_img)  # 将折线图粘贴到指定位置 (950,10)
+
+        except Exception as e:
+            print(f"[ERROR] 绘制折线图失败: {e}")
+
     cImgs=[]
     for i in range(drawCount):
         if not os.path.exists(ip:=os.path.join(script_dir, "jpgs", its[i]["name"]+".jpg")):ip=os.path.join(script_dir, "jpgs", "NYA.jpg")
         try:cImgs.append(Image.open(ip).convert("RGBA"))
         except:cImgs.append(Image.new("RGBA",(142,80),(100,100,100,255)))
+
     def draw_gradient_txt(cv,xy,txt,ft,tc,bc):
         bb=ImageDraw.Draw(cv).textbbox((0,0),txt,font=ft)
         tw,th=bb[2]-bb[0],bb[3]-bb[1]
@@ -182,6 +221,7 @@ def drawImg(its, uname, uR, outp, drawCount, drawLevel):
                     lvl=lvl.resize((lw,lh))
                     can.alpha_composite(lvl,(lx,ly))
     can.convert("RGB").save(outp,"PNG")
+
 def load_links(txt_path=None):
     if not txt_path:txt_path = os.path.join(script_dir, "links.txt")
     lm={}
@@ -248,142 +288,99 @@ def download_all_parallel(links_map):
         with open(sentinel,"w") as f:
             f.write("downloaded.\n")
 def calcUserRealityTimeline(user_archive, history):
-    """
-    1. 遍历用户存档，按“曲名||难度”去重，取最高成绩并按 singleRealityRaw 降序排序，取前20个为 b20，20之后的为 b21。
-    2. 遍历历史记录并计算单曲 Reality，查找与 b20 内曲目匹配的成绩，逐步更新 b20。
-    3. 最终生成多个时间点和 user reality 值。
-    """
-    # ① 用户存档去重：根据曲名和难度生成唯一标识，取最高成绩。
-    user_best = {}
-    for rec in user_archive:
-        key = rec["name"] + "||" + rec["category"]
-        if key not in user_best or rec["singleRealityRaw"] > user_best[key]["singleRealityRaw"]:
-            user_best[key] = rec
-    sorted_user = sorted(user_best.values(), key=lambda r: r["singleRealityRaw"], reverse=True)
-    # b20为前20，若不足20则补空（以 None 表示，空成绩视为 0）
-    b20 = sorted_user[:20]
-    if len(b20) < 20:
-        b20.extend([None]*(20 - len(b20)))
-    candidate_b21 = sorted_user[20] if len(sorted_user) > 20 else None
-
-    # ② 历史记录：根据 chart_id 生成曲目名称并计算 reality
-    for rec in history:
-        song_name = csts.get(rec["chart_id"], {}).get("name", rec["chart_id"])
-        rec["song"] = song_name
-        rec["singleRealityRaw"] = rec.get("singleRealityRaw", 0) + csts.get(rec["chart_id"], {}).get("constant", 0)
-
-    history_backup = sorted(history, key=lambda r: r["singleRealityRaw"], reverse=True)
-
-    timeline = []
-    while True:
-        # 查找 b20 内的曲目，并从历史记录中找到与之对应的最高成绩
-        b20_songs = {rec["name"] for rec in b20 if rec is not None}
-        bn = None
-        bn_index = None
-        for idx, rec in enumerate(history_backup):
-            if rec["song"] in b20_songs:
-                bn = rec
-                bn_index = idx
-                break
-        if bn is None:
-            break  # 没有更多的记录可以替换
-
-        # 找到对应的 b20 曲目
-        bn_pos = None
-        for i, rec in enumerate(b20):
-            if rec is not None and rec["name"] == bn["song"]:
-                bn_pos = i
-                break
-        if bn_pos is None:
-            # 若没找到（理论上不该发生），继续扫描下一条记录
-            history_backup = history_backup[:bn_index]
-            continue
-
-        # 获取该记录后的下一条历史记录（如果有）
-        rec2 = history_backup[bn_index + 1] if bn_index + 1 < len(history_backup) else None
-
-        # 判断替换规则
-        replacement = None
-        if rec2 is not None and rec2["song"] not in b20_songs and rec2["singleRealityRaw"] != bn["singleRealityRaw"]:
-            if candidate_b21 is not None:
-                replacement = candidate_b21 if candidate_b21["singleRealityRaw"] >= rec2["singleRealityRaw"] else rec2
-            else:
-                replacement = rec2
-        else:
-            if candidate_b21 is not None:
-                replacement = candidate_b21
-            else:
-                replacement = None
-
-        # 替换操作
-        if replacement is None:
-            # 直接将该位置置为 None
-            b20[bn_pos] = None
-            # 更新当前的 reality，并保存时间点
-            current_total = sum(rec["singleRealityRaw"] if rec is not None else 0 for rec in b20)
-            current_reality = current_total / 20.0
-            timeline.append((bn["played_at"], current_reality))
-        else:
-            # 替换为新记录
-            b20[bn_pos] = replacement
-            current_total = sum(rec["singleRealityRaw"] if rec is not None else 0 for rec in b20)
-            current_reality = current_total / 20.0
-            timeline.append((replacement["played_at"], current_reality))
-            # 如果使用了候补 b21，则更新候补为下一个
-            if replacement == candidate_b21:
-                try:
-                    idx_candidate = sorted_user.index(candidate_b21)
-                    candidate_b21 = sorted_user[idx_candidate + 1]
-                except:
-                    candidate_b21 = None
-
-        # 删除 bn 及其之后的历史记录
-        history_backup = history_backup[:bn_index]
-
-    # 按时间升序排序时间点
-    timeline.sort(key=lambda t: t[0])
-    return timeline
+    ureality = sum([score['singleRealityRaw'] for score in sorted(user_archive, key=lambda x: x['singleRealityRaw'], reverse=True)[:20]]) / 20
+    e=[]
+    sorted_history=history
+    while sorted_history:
+        sorted_history = sorted(sorted_history, key=lambda x: x['played_at'], reverse=True)
+        #寻找最新位于b20中的历史记录
+        b20 = sorted(user_archive, key=lambda x: x['singleRealityRaw'], reverse=True)[:20]
+        i=-1
+        lg_bn=None
+        bn=None
+        for lg_score in sorted_history:
+            for bnn in b20:
+                if (lg_score["name"] == bnn["name"] and lg_score["category"] == bnn["category"] and lg_score["score"] == bnn["bestScore"]):
+                    bn=bnn;break
+            if bn:lg_bn=lg_score;break
+        if not bn:break
+        t=lg_bn['played_at']
+        sorted_history = [r for r in sorted_history if r['played_at'] <= t]
+        sorted_history = sorted(sorted_history, key=lambda x: x['singleRealityRaw'], reverse=True)
+        ii=0
+        #寻找可进b的记录
+        for idx in range(1, len(sorted_history)):
+            record = sorted_history[idx]
+            if (record["singleRealityRaw"] != bn["singleRealityRaw"]):ii=1
+            elif (record["name"] != bn["name"] and record["category"] != bn["category"]):ii=1
+            if ii==1:#防止重复
+                for bnn in b20:
+                    if not((record["name"] == bnn["name"] and record["category"] == bnn["category"] and record["score"] == bnn["bestScore"])):break
+                    else:ii=0
+            if ii==1:break
+        user_archive.remove(bn)
+        user_archive.append({"category":record['category'],"name":record['name'],"bestScore":record['score'],"singleRealityRaw":record['singleRealityRaw']})
+        ureality = sum([score['singleRealityRaw'] for score in sorted(user_archive, key=lambda x: x['singleRealityRaw'], reverse=True)[:20]]) / 20
+        e.append((t,ureality))
+    return(e)
 
 
-# ----------------------------
-# 计算用户的 Reality 变化时间线
+
+
 def calcUserRealityTimelineNew(db_path, user_archive):
-    """
-    读取 data.db 中历史记录，计算每条记录的 singleRealityRaw，并生成用户的 Reality 变化时间线
-    """
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT chart_id, score, played_at FROM scores")
+            cursor.execute("SELECT chart_id, modifiers, grade, score, score_accuracy, score_exact_count, score_perfect_count, score_good_count, score_bad_count, score_miss_count, played_at FROM scores")
             rows = cursor.fetchall()
         if not rows:
             print("[WARN] 没有从 data.db 中读取到数据")
             return []
+
         history = []
         for r in rows:
             chart_id = str(r[0])
-            score = int(r[1]) if r[1] is not None else 0
-            played_at = str(r[2]) if r[2] is not None else "Unknown"
-            try:
-                played_at_dt = datetime.datetime.strptime(played_at, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                print(f"[ERROR] 时间格式错误: {played_at}")
-                continue
+            modifiers = str(r[1])
+            grade = str(r[2])
+            score = int(r[3])
+            score_accuracy = float(r[4])
+            score_exact_count = int(r[5])
+            score_perfect_count = int(r[6])
+            score_good_count = int(r[7])
+            score_bad_count = int(r[8])
+            score_miss_count = int(r[9])
+            played_at = str(r[10])
+
             constant = csts.get(chart_id, {}).get("constant", 0)
+            category = csts.get(chart_id, {}).get("category", 0)
+            name = csts.get(chart_id, {}).get("name", 0)
             rlt = reality(score) or 0
             singleRealityRaw = rlt + constant
+
             history.append({
                 "chart_id": chart_id,
-                "played_at": played_at_dt,
+                "name": name,
+                "category": category,
+                "modifiers": modifiers,
+                "grade": grade,
                 "score": score,
+                "score_accuracy": score_accuracy,
+                "score_exact_count": score_exact_count,
+                "score_perfect_count": score_perfect_count,
+                "score_good_count": score_good_count,
+                "score_bad_count": score_bad_count,
+                "score_miss_count": score_miss_count,
                 "constant": constant,
+                "played_at": played_at,
                 "singleRealityRaw": singleRealityRaw
             })
+
         print("\n[INFO] 读取 data.db 历史记录:")
         for record in sorted(history, key=lambda x: x["played_at"], reverse=True):
-            print(f"Song: {record['song']}, Played At: {record['played_at']}, "
+            print(f"Song: {record['name']}_{record['category']}, Played At: {record['played_at']}, "
                   f"Score: {record['score']}, Constant: {record['constant']}, "
                   f"Reality: {record['singleRealityRaw']}")
+
         # 使用历史记录和用户存档生成 Reality 变化时间线
         timeline = calcUserRealityTimeline(user_archive, history)
         for t, r in timeline:
@@ -395,45 +392,73 @@ def calcUserRealityTimelineNew(db_path, user_archive):
         print(f"[ERROR] An error occurred: {e}")
     return []
 
-# ----------------------------
-# 绘制用户 Reality 变化折线图
 def drawUserInfo(user_reality_timeline, uname, outPath):
     if not user_reality_timeline:
         print("[WARN] 用户 Reality 变化曲线数据为空")
         return
+
     W, H = 1200, 600
-    can = Image.new("RGBA", (W, H), (0,0,0,255))
+    can = Image.new("RGBA", (W, H), (0, 0, 0, 255))
     dr = ImageDraw.Draw(can)
+
+    # 加载字体
     font_path = os.path.join(script_dir, "fonts", "NotoSansCJK-Regular.ttc")
     f_title = ImageFont.truetype(font_path, 40, index=2)
     f_labels = ImageFont.truetype(font_path, 24, index=2)
-    timestamps = [t for t, _ in user_reality_timeline]
+
+    # 将时间戳字符串转换为 datetime 对象
+    timestamps = [datetime.datetime.strptime(t, "%Y-%m-%d %H:%M:%S") for t, _ in user_reality_timeline]
     reality_values = [r for _, r in user_reality_timeline]
+
+    # 计算最小时间和最大时间，用于归一化
     min_time, max_time = min(timestamps), max(timestamps)
     min_reality, max_reality = min(reality_values), max(reality_values)
+
+    # 如果时间差为零，直接退出绘制
+    if min_time == max_time:
+        print("[ERROR] 所有时间戳相同，无法绘制图表。")
+        return
+
+    # 设置边距和绘图区域的尺寸
     px_margin, py_margin = 100, 80
-    plot_width, plot_height = W - 2*px_margin, H - 2*py_margin
+    plot_width, plot_height = W - 2 * px_margin, H - 2 * py_margin
+
+    # 归一化时间戳和 Reality 值，使其适应绘图区域
     def scale_x(time_point):
-        return px_margin + (time_point - min_time).total_seconds() / (max_time - min_time).total_seconds() * plot_width
+        # 处理除零错误
+        time_diff = (max_time - min_time).total_seconds()
+        if time_diff == 0:
+            return px_margin  # 如果时间差为零，返回左边距作为默认值
+        return px_margin + (time_point - min_time).total_seconds() / time_diff * plot_width
+
     def scale_y(reality_val):
         return H - py_margin - (reality_val - min_reality) / (max_reality - min_reality) * plot_height
-    grid_color = (100,100,100,200)
+
+    # 绘制网格线
+    grid_color = (100, 100, 100, 200)
     for i in range(6):
-        y = H - py_margin - i*(plot_height//5)
-        dr.line([(px_margin, y), (W-px_margin, y)], fill=grid_color, width=1)
+        y = H - py_margin - i * (plot_height // 5)
+        dr.line([(px_margin, y), (W - px_margin, y)], fill=grid_color, width=1)
+
+    # 绘制 Reality 变化的折线图
     prev_xy = None
-    for t, r in user_reality_timeline:
+    for t, r in zip(timestamps, reality_values):  # 使用转换后的时间戳
         x, y = scale_x(t), scale_y(r)
-        dr.ellipse((x-5, y-5, x+5, y+5), fill=(255,255,255,255))
+        dr.ellipse((x - 5, y - 5, x + 5, y + 5), fill=(255, 255, 255, 255))  # 绘制点
         if prev_xy:
-            dr.line([prev_xy, (x, y)], fill=(0,150,255,255), width=3)
+            dr.line([prev_xy, (x, y)], fill=(0, 150, 255, 255), width=3)  # 绘制点与点之间的连线
         prev_xy = (x, y)
-    dr.text((W//2-150, 20), f"User Reality Progression - {uname}", fill=(255,255,255), font=f_title)
-    dr.text((px_margin-60, py_margin-10), f"{max_reality:.2f}", fill=(255,255,255), font=f_labels)
-    dr.text((px_margin-60, H-py_margin-20), f"{min_reality:.2f}", fill=(255,255,255), font=f_labels)
-    dr.text((W-px_margin-80, H-py_margin+10), max_time.strftime("%Y-%m-%d"), fill=(255,255,255), font=f_labels)
-    dr.text((px_margin, H-py_margin+10), min_time.strftime("%Y-%m-%d"), fill=(255,255,255), font=f_labels)
+
+    # 添加标题和标签
+    dr.text((W // 2 - 150, 20), f"User Reality Progression - {uname}", fill=(255, 255, 255), font=f_title)
+    dr.text((px_margin - 60, py_margin - 10), f"{max_reality:.2f}", fill=(255, 255, 255), font=f_labels)
+    dr.text((px_margin - 60, H - py_margin - 20), f"{min_reality:.2f}", fill=(255, 255, 255), font=f_labels)
+    dr.text((W - px_margin - 80, H - py_margin + 10), max_time.strftime("%Y-%m-%d"), fill=(255, 255, 255), font=f_labels)
+    dr.text((px_margin, H - py_margin + 10), min_time.strftime("%Y-%m-%d"), fill=(255, 255, 255), font=f_labels)
+
+    # 保存生成的图片
     can.convert("RGB").save(outPath, "PNG")
+
 def download_with_progress(url, out_path):
     r=requests.get(url,stream=True);r.raise_for_status()
     total=int(total) if total else 0
