@@ -153,4 +153,26 @@
 "e69b4e77-ccb2-4694-ba88-7209ed097783": { constant: 1.0 category: "DZ" name: "雨之城" },
 "606be389-ad01-41e3-a1ba-e7b355d16948": { constant: 1.0 category: "DZ" name: "Sundown" },
 "364be32e-f685-4efb-80b5-64281c93939d": { constant: 1.0 category: "DZ" name: "Welcome to Milthm" },
-"4fa17ebf-6a8e-47c1-8d8b-bd1344ccd559": { constant: 1.0 category: "DZ" name: "サイクルの欠片"}
+"4fa17ebf-6a8e-47c1-8d8b-bd1344ccd559": { constant: 1.0 category: "DZ" name: "サイクルの欠片"},
+"6a647130-01de-4cf2-ba7a-a6065f043465": { constant: 4.0 category: "SK" name: "White Lizard" },
+"c1d143f6-ad6b-46cc-b3e0-f136e4accb01": { constant: 10.6 category: "CB" name: "Threat - Waterfront Complex" },
+"9c28aeec-247e-4b9d-9edc-a92d0bd06303": { constant: 7.6 category: "SK" name: "Threat - Waterfront Complex" },
+"2103d16c-9a07-4001-be01-155ef305118e": { constant: 2.0 category: "DZ" name: "Threat - Waterfront Complex" },
+"1a3167ae-9105-4545-9aa7-3cab60874e9c": { constant: 10.4 category: "CB" name: "Kayava" },
+"1ae6231b-d165-4f09-a138-9ec0d29431a7": { constant: 5.5 category: "SK" name: "Kayava" },
+"85a6566f-d9df-408e-a812-0b13a80362cc": { constant: 3.0 category: "DZ" name: "Kayava" },
+"abefe6c9-2b30-45ef-b5b0-8edb5fc18195": { constant: 11.5 category: "CB" name: "Threat - Metropolis" },
+"975a9b31-3f04-4587-b77e-2282dec95188": { constant: 6.6 category: "SK" name: "Threat - Metropolis" },
+"c292f47e-d8ff-483f-bfd7-aa43937f0e2e": { constant: 2.0 category: "DZ" name: "Threat - Metropolis" },
+"6add3ab9-52c0-4c13-abc9-506dfa89faa6": { constant: 11.1 category: "CB" name: "Sheer Ice Torrent" },
+"d3ddf678-adb0-4157-ae10-21c2667c7ba8": { constant: 7.8 category: "SK" name: "Sheer Ice Torrent" },
+"e23637e8-fe15-4d9a-b3c9-9e059745ad3c": { constant: 2.0 category: "DZ" name: "Sheer Ice Torrent" },
+"a8d6dfa7-b879-4eef-a10a-dbbd46519583": { constant: 12.2 category: "CB" name: "Moonfall / 大月墜落狂想" },
+"9eb53fd3-a91c-45c6-8608-f3a76eecf9f7": { constant: 8.0 category: "SK" name: "Moonfall / 大月墜落狂想" },
+"ca751a94-f71e-4556-9d54-76de325ca29c": { constant: 2.0 category: "DZ" name: "Moonfall / 大月墜落狂想" }
+//特殊谱面
+
+//剧情谱面，显示定数为3
+//"eb802d90-72c0-4b95-856a-b2951a57c0ec": { constant: -1 category: "CB*" name: "Sheer Ice Torrent" },
+//"d3ddf678-adb0-4158-ae10-21c2667c7ba8": { constant: -1 category: "SK*" name: "Sheer Ice Torrent" },
+//"e23637e8-fe16-4d9a-b3c9-9e059745ad3c": { constant: -1 category: "DZ*" name: "Sheer Ice Torrent" },
