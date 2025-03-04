@@ -167,9 +167,9 @@
 "6add3ab9-52c0-4c13-abc9-506dfa89faa6": { constant: 11.1 category: "CB" name: "Sheer Ice Torrent" },
 "d3ddf678-adb0-4157-ae10-21c2667c7ba8": { constant: 7.8 category: "SK" name: "Sheer Ice Torrent" },
 "e23637e8-fe15-4d9a-b3c9-9e059745ad3c": { constant: 2.0 category: "DZ" name: "Sheer Ice Torrent" },
-"a8d6dfa7-b879-4eef-a10a-dbbd46519583": { constant: 12.2 category: "CB" name: "Moonfall / 大月墜落狂想" },
-"9eb53fd3-a91c-45c6-8608-f3a76eecf9f7": { constant: 8.0 category: "SK" name: "Moonfall / 大月墜落狂想" },
-"ca751a94-f71e-4556-9d54-76de325ca29c": { constant: 2.0 category: "DZ" name: "Moonfall / 大月墜落狂想" }
+"a8d6dfa7-b879-4eef-a10a-dbbd46519583": { constant: 12.2 category: "CB" name: "Moonfall／大月墜落狂想" },
+"9eb53fd3-a91c-45c6-8608-f3a76eecf9f7": { constant: 8.0 category: "SK" name: "Moonfall／大月墜落狂想" },
+"ca751a94-f71e-4556-9d54-76de325ca29c": { constant: 2.0 category: "DZ" name: "Moonfall／大月墜落狂想" }
 //特殊谱面
 
 //剧情谱面，显示定数为3
