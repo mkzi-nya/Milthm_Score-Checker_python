@@ -52,6 +52,7 @@
 "NYA": "https://static.wikia.nocookie.net/milthm/images/c/cc/Mil_night.png",
 "Meltovt Necrosys": "https://static.wikia.nocookie.net/milthm/images/9/99/Meltovt_Necrosys_jacket.png",
 "Elsorhg": "https://static.wikia.nocookie.net/milthm/images/b/b2/Elsorhg_jacket.png",
+"White Lizard": "https://static.wikia.nocookie.net/milthm/images/b/bc/White_Lizard_jacket.png",
 "Threat - Waterfront Complex": "https://static.wikia.nocookie.net/milthm/images/7/75/Threat_-_Waterfront_Complex_jacket.png",
 "Kayava": "https://static.wikia.nocookie.net/milthm/images/2/20/Kayava_jacket.png",
 "Threat - Metropolis": "https://static.wikia.nocookie.net/milthm/images/8/88/Threat_-_Metropolis_day_jacket.png",
