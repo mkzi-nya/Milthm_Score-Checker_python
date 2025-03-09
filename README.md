@@ -96,6 +96,5 @@ Milthm Score Checker written in Python
 Milthm 查分器用于从不同平台的存档中提取分数信息并生成图像输出。支持 JSON、XML、plist、reg 等多种格式。
 
 The Milthm Score Checker extracts score information from save files on various platforms and generates image outputs. It supports multiple formats including JSON, XML, plist, and reg.
-```
 
 ---
